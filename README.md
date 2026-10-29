@@ -51,7 +51,6 @@ VGYQU3N?<<HHLPE6K?<<<<<<<<<<<<<?
 | **NAS mit PHP** – `index.html` + `api.php` | mehrere Personen im Heimnetz | jeder Browser, auch Handy und Tablet | Ordner auf dem NAS |
 | **Gemeinsamer Ordner** – `Pruefziffer-Trainer-Netz.html` | mehrere PCs ohne Server | nur Edge oder Chrome am PC | Netzlaufwerk |
 
-Die fertigen Dateien gibt es unter **[Releases](../../releases)**.
 
 ---
 
