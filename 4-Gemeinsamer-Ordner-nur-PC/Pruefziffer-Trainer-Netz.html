@@ -1,0 +1,1670 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Läuft vollständig offline: keine externen Dateien, keine Verbindungen -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; form-action 'none'">
+<title>Prüfziffer-Trainer Netz</title>
+<style>
+:root {
+  --bg: #f6f5f1; --surface: #ffffff; --text: #1d1d1b; --muted: #5f5e58; --line: #d8d5cc;
+  --accent: #1f4e79; --accent-text: #ffffff; --ok: #2e7d32; --bad: #c62828; --pend: #9a5b00;
+  --mrz-bg: #f2efe4; --mrz-text: #151515; --fill: #8c887c; --check-bg: #dce8f4; --check: #1f4e79;
+  --solved-bg: #dff0e0; --wrong-bg: #f8dddd; --water: rgba(198, 40, 40, .16);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161714; --surface: #20211d; --text: #ecebe6; --muted: #a8a69d; --line: #3a3a34;
+    --accent: #6fa6d6; --accent-text: #0e1a26; --ok: #7cc47f; --bad: #ef8a8a; --pend: #e0a64a;
+    --mrz-bg: #ebe7da; --check-bg: #cfe0f0; --solved-bg: #d3ebd4; --wrong-bg: #f3d2d2;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161714; --surface: #20211d; --text: #ecebe6; --muted: #a8a69d; --line: #3a3a34;
+  --accent: #6fa6d6; --accent-text: #0e1a26; --ok: #7cc47f; --bad: #ef8a8a; --pend: #e0a64a;
+  --mrz-bg: #ebe7da; --check-bg: #cfe0f0; --solved-bg: #d3ebd4; --wrong-bg: #f3d2d2;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { border-bottom: 1px solid var(--line); background: var(--surface); }
+header .in, main { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+header .in { display: flex; align-items: center; gap: 12px; min-height: 56px; }
+header h1 { font-size: 1.15rem; margin: 0; letter-spacing: .01em; }
+header .tag { color: var(--muted); font-size: .85rem; }
+header .who { margin-left: auto; font-weight: 600; }
+header h1 small { font-size: .7em; color: var(--accent); }
+td.wrap { white-space: normal; }
+.qr { width: 240px; height: 240px; image-rendering: pixelated; background: #fff; padding: 8px; border-radius: 8px; }
+.bigurl { font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+.forwhom { font-size: .85rem; color: var(--accent); }
+.strong { font-weight: 600; }
+@media (max-width: 480px) { header .tag { display: none; } }
+main { padding-top: 8px; padding-bottom: 48px; }
+h2 { font-size: 1.35rem; margin: 20px 0 8px; }
+h3 { font-size: 1.05rem; margin: 22px 0 8px; }
+.lead { font-size: 1.05rem; margin: 16px 0 12px; }
+.muted { color: var(--muted); font-size: .9rem; }
+.note { margin-top: 20px; }
+.warn { color: var(--pend); font-weight: 600; }
+.mono, code, .grid, input.content, input.answer { font-family: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; }
+
+button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.danger:hover { border-color: var(--bad); color: var(--bad); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.timer { position: sticky; top: 0; z-index: 2; display: inline-block; margin: 8px 0 0; padding: 6px 14px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--line); font-weight: 700; font-variant-numeric: tabular-nums; }
+.timer.plain { font-weight: 600; color: var(--muted); }
+.timer.soon { color: var(--pend); border-color: var(--pend); }
+.timer.over { color: var(--bad); border-color: var(--bad); }
+.explain p, .explain li { max-width: 72ch; }
+.explain li { margin: 4px 0; }
+.example { font-size: 1.4rem; letter-spacing: .2em; margin: 4px 0; }
+details { margin: 8px 0; }
+summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+table.values, table.products { border-collapse: collapse; background: var(--surface); margin: 8px 0; }
+.values th, .values td, .products th, .products td { border: 1px solid var(--line); padding: 4px 9px; text-align: center; }
+.values th, .products th { font-size: .8rem; color: var(--muted); font-weight: 600; text-align: left; }
+.values tr.vals td { color: var(--muted); }
+.values tr.vals + tr td, .values tr.vals + tr th { border-top: 2px solid var(--line); }
+td.big { font-weight: 700; font-size: 1.05rem; }
+td.strong { font-weight: 800; color: var(--accent); }
+.products .tens { color: var(--muted); }
+.products b { color: var(--accent); }
+.steps td, .steps th { text-align: center; }
+.pairs { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.adminbanner { background: var(--solved-bg); color: #1b4d1e; border-radius: 10px; padding: 8px 14px; font-weight: 600; margin: 12px 0 4px; }
+.lockbanner { background: var(--check-bg); color: #13314d; border-radius: 10px; padding: 10px 14px; font-weight: 700; margin: 16px 0 4px; }
+.pinbox { margin-top: 24px; }
+input.pin { width: 140px; letter-spacing: .2em; }
+.linkish { border: none; background: none; padding: 0; color: var(--accent); text-decoration: underline; font-size: inherit; }
+.bar.small button { padding: 5px 10px; font-size: .9rem; }
+
+.card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 8px 0; }
+.cardtext { display: flex; flex-direction: column; min-width: 0; }
+
+fieldset { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin: 14px 0; padding: 10px 14px 12px; }
+legend { font-weight: 700; padding: 0 6px; }
+.field { display: inline-flex; flex-direction: column; gap: 4px; margin: 6px 16px 6px 0; font-size: .9rem; }
+.field > span { color: var(--muted); }
+input, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+select { min-width: 72px; }
+.row2 { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 8px; }
+.checkline { display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 10px; }
+.weights { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.block { border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 6px; }
+.blockhead { font-weight: 600; font-size: .95rem; }
+input.content { width: 100%; max-width: 560px; letter-spacing: .12em; text-transform: uppercase; margin: 4px 0; }
+.linestatus { font-size: .85rem; color: var(--muted); margin: 8px 0 0; }
+.linestatus.bad { color: var(--bad); font-weight: 600; }
+.sticky { position: sticky; bottom: 0; background: var(--bg); border-top: 1px solid var(--line); margin-top: 16px; padding: 4px 0; }
+.status { margin: 6px 0 0; font-weight: 600; }
+.status.ready { color: var(--ok); }
+.status.pending { color: var(--pend); }
+
+/* Beispiel-MRZ als Raster: Zeilen Z1…, Spalten S1… */
+.gridwrap { position: relative; overflow-x: auto; background: var(--mrz-bg); border-radius: 10px; padding: 10px; margin: 10px 0; }
+.gridwrap.muster::after { content: "MUSTER"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font: 800 clamp(48px, 12vw, 120px)/1 system-ui, sans-serif; color: var(--water); transform: rotate(-10deg); pointer-events: none; letter-spacing: .08em; }
+table.grid { border-collapse: collapse; color: var(--mrz-text); }
+.grid th { font: 600 9px/1 system-ui, sans-serif; color: #6b675c; padding: 2px 0; }
+.grid th.col { writing-mode: vertical-rl; transform: rotate(180deg); height: 30px; text-align: left; }
+.grid th.row { padding-right: 6px; font-size: 11px; }
+.grid th.over { color: var(--bad); }
+.grid td { width: 22px; min-width: 22px; height: 30px; text-align: center; font-size: 17px; border: 1px solid rgba(0,0,0,.07); position: relative; }
+.grid td.fill { color: var(--fill); }
+.grid td.empty { color: #b6b1a3; }
+.grid td.cd { background: var(--check-bg); color: var(--check); font-weight: 700; }
+.grid td.cd small { position: absolute; left: 0; right: 0; bottom: 0; font: 600 8px/1 system-ui, sans-serif; }
+.grid td.solved { background: var(--solved-bg); color: #1b5e20; }
+.grid td.wrong { box-shadow: inset 0 -3px 0 #c62828; }
+.grid td.right { box-shadow: inset 0 -3px 0 #2e7d32; }
+.grid td.over { background: #f3c6c6; }
+
+.tablewrap { overflow-x: auto; }
+table.tasks { border-collapse: collapse; width: 100%; background: var(--surface); border-radius: 10px; overflow: hidden; }
+.tasks th, .tasks td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.tasks th { font-size: .85rem; color: var(--muted); font-weight: 600; }
+.tasks td.num { font-weight: 700; color: var(--accent); }
+input.answer { width: 44px; text-align: center; font-size: 1.15rem; font-weight: 700; padding: 4px; }
+.mark { font-weight: 800; font-size: 1.15rem; }
+.mark.right { color: var(--ok); }
+.mark.wrong { color: var(--bad); }
+.solvedcell { color: var(--ok); font-weight: 800; }
+.score { font-size: 1.2rem; font-weight: 700; }
+.working .step { margin: 10px 0; }
+.working code { display: block; margin-top: 3px; font-size: .88rem; overflow-wrap: anywhere; color: var(--muted); }
+
+@media print {
+  header, .noprint, .bar, .note { display: none !important; }
+  body { background: #fff; color: #000; font-size: 12pt; }
+  main { max-width: none; padding: 0; }
+  .gridwrap { overflow: visible; background: #fff; border: 1px solid #999; }
+  .grid td.cd { background: #eee; }
+  table.tasks { border: 1px solid #999; }
+  input.answer { border: 1px solid #000; background: #fff; }
+  .working code { color: #000; }
+  @page { margin: 14mm; }
+  .explain h3 { break-after: avoid; page-break-after: avoid; }
+  .explain .tablewrap, .explain table, .explain ul, .explain ol, .explain li { break-inside: avoid; page-break-inside: avoid; }
+  .explain .tablewrap { overflow: visible; }
+  .explain h2 { margin-top: 0; }
+  .products td, .products th, .values td, .values th { padding: 2px 8px; }
+  .explain { font-size: 10.5pt; line-height: 1.35; }
+  .explain h3 { margin: 14px 0 6px; }
+  .steps td, .steps th { padding: 2px 8px; }
+  .explain .newpage { break-before: page; page-break-before: always; margin-top: 0; }
+  .pairs { flex-wrap: nowrap; gap: 10mm; }
+}
+</style>
+</head>
+<body>
+<header><div class="in"><h1>Prüfziffer-Trainer <small>Netz</small></h1><span class="tag">gemeinsamer Ordner · ohne Internet</span><span id="who" class="who"></span></div></header>
+<main id="app"></main>
+<script>
+/* Rechenkern – gleiche Regeln und gleiches Speicherformat wie die Android-App (Calc.java / Exam.java). */
+const ALLOWED_WEIGHTS = [1, 3, 7, 9];
+const LIM = { minLines: 2, maxLines: 4, minWeights: 2, maxWeights: 6, minBlocks: 1, maxBlocks: 6,
+              minBlockLen: 1, maxBlockLen: 30, maxFill: 30, minLineLen: 10, maxLineLen: 60 };
+const FILL = '<';
+const TIME_OPTIONS = [0, 1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120];   // Zeitvorgabe in Minuten, 0 = aus
+const RANDOM_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';   // ohne O und I (Verwechslung mit 0 und 1)
+
+function value(c) {
+  if (c >= '0' && c <= '9') return c.charCodeAt(0) - 48;
+  if (c >= 'A' && c <= 'Z') return c.charCodeAt(0) - 55;
+  if (c === FILL) return 0;
+  throw new Error('Ungültiges Zeichen: ' + c);
+}
+
+function weightedSum(s, w) {
+  let sum = 0;
+  for (let i = 0; i < s.length; i++) sum += value(s[i]) * w[i % w.length];
+  return sum;
+}
+
+function checkDigit(s, w) { return weightedSum(s, w) % 10; }
+
+function place(line, pos) { return 'Z' + line + 'S' + pos; }
+
+function defaultLine() {
+  return { lineCheck: false, blocks: [{ length: 7, fillAfter: 2, content: '' }, { length: 7, fillAfter: 2, content: '' }] };
+}
+
+function example() {
+  const e = { name: 'Prüfung', lineLength: 32, weights: [7, 3, 1, 9, 3], timeLimit: 0, lines: [] };
+  for (let i = 0; i < 4; i++) e.lines.push(defaultLine());
+  e.lines[0].lineCheck = true;
+  e.lines[3].lineCheck = true;
+  return e;
+}
+
+function clone(e) { return JSON.parse(JSON.stringify(e)); }
+
+/** Belegte Stellen einer Zeile ohne die Füllzeichen am Zeilenende. */
+function used(e, li) {
+  const l = e.lines[li];
+  let n = 0;
+  l.blocks.forEach((b, i) => { n += b.length + 1; if (i < l.blocks.length - 1) n += b.fillAfter; });
+  if (l.lineCheck) n++;
+  if (li === e.lines.length - 1) n++;
+  return n;
+}
+
+function validate(e) {
+  const err = [];
+  if (e.lines.length < LIM.minLines || e.lines.length > LIM.maxLines) err.push('2 bis 4 Zeilen erforderlich');
+  if (e.weights.length < LIM.minWeights || e.weights.length > LIM.maxWeights) err.push('2 bis 6 Gewichte erforderlich');
+  e.weights.forEach(w => { if (!ALLOWED_WEIGHTS.includes(w)) err.push('Gewicht ' + w + ' nicht erlaubt (nur 1, 3, 7, 9)'); });
+  if (e.lineLength < LIM.minLineLen || e.lineLength > LIM.maxLineLen) err.push('Zeilenlänge 10 bis 60');
+  e.lines.forEach((l, li) => {
+    const z = 'Zeile ' + (li + 1);
+    if (!l.blocks.length) err.push(z + ': kein Block');
+    const u = used(e, li);
+    if (u > e.lineLength) err.push(z + ': ' + (u - e.lineLength) + ' Zeichen zu lang');
+    l.blocks.forEach((b, bi) => {
+      const bl = z + ', Block ' + (bi + 1);
+      if (!b.content) err.push(bl + ': Zeichen fehlen');
+      else if (b.content.length !== b.length) err.push(bl + ': ' + b.content.length + ' statt ' + b.length + ' Zeichen');
+      if (!/^[0-9A-Z<]*$/.test(b.content)) err.push(bl + ': nur 0–9, A–Z und < erlaubt');
+    });
+  });
+  return err;
+}
+
+/** Alle Prüfziffern berechnen (vorher validate). */
+function compute(e) {
+  const slots = [], out = [];
+  let all = '';
+  const last = e.lines.length - 1, w = e.weights;
+  const slot = (kind, line, pos, block, input, range) => {
+    const sum = weightedSum(input, w);
+    const s = { kind, line, pos, block, input, range, sum, digit: sum % 10 };
+    slots.push(s);
+    return s;
+  };
+  e.lines.forEach((l, li) => {
+    const z = li + 1;
+    let sb = '';
+    l.blocks.forEach((b, bi) => {
+      const start = sb.length + 1;
+      sb += b.content;
+      const s = slot('BLOCK', z, sb.length + 1, bi + 1, b.content, place(z, start) + '–' + sb.length);
+      sb += s.digit;
+      if (bi < l.blocks.length - 1) sb += FILL.repeat(b.fillAfter);
+    });
+    const trailing = e.lineLength - sb.length - (l.lineCheck ? 1 : 0) - (li === last ? 1 : 0);
+    sb += FILL.repeat(Math.max(0, trailing));
+    if (l.lineCheck) {
+      const s = slot('LINE', z, sb.length + 1, 0, sb, place(z, 1) + '–' + sb.length);
+      sb += s.digit;
+    }
+    if (li === last) {
+      const s = slot('TOTAL', z, sb.length + 1, 0, all + sb, place(1, 1) + ' bis ' + place(z, sb.length));
+      sb += s.digit;
+    }
+    out.push(sb);
+    all += sb;
+  });
+  return { lines: out, slots };
+}
+
+function slotTitle(s) {
+  if (s.kind === 'BLOCK') return 'Block ' + s.block + ', Zeile ' + s.line;
+  if (s.kind === 'LINE') return 'Zeilenprüfziffer Zeile ' + s.line;
+  return 'Gesamtprüfziffer';
+}
+
+/** Rechenweg, z. B. „A(10)×7 + 1×3 + <(0)×1 = 73 → Prüfziffer 3“. */
+function working(s, w) {
+  const parts = [];
+  for (let i = 0; i < s.input.length; i++) {
+    const c = s.input[i];
+    parts.push((c >= '0' && c <= '9' ? c : c + '(' + value(c) + ')') + '×' + w[i % w.length]);
+  }
+  return parts.join(' + ') + ' = ' + s.sum + ' → Prüfziffer ' + s.digit;
+}
+
+function randomInt(n) {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const a = new Uint32Array(1);
+    crypto.getRandomValues(a);
+    return a[0] % n;
+  }
+  return Math.floor(Math.random() * n);
+}
+
+function randomFill(e, letters) {
+  const chars = letters ? '0123456789' + RANDOM_LETTERS : '0123456789';
+  e.lines.forEach(l => l.blocks.forEach(b => {
+    let s = '';
+    for (let i = 0; i < b.length; i++) s += chars[randomInt(chars.length)];
+    b.content = s;
+  }));
+}
+
+/** Eingelesene Daten (Import, Speicher) in eine saubere Prüfung umwandeln. */
+function sanitize(o) {
+  const num = (v, d) => (Number.isInteger(v) ? v : d);
+  const e = {
+    name: typeof o.name === 'string' && o.name.trim() ? o.name.slice(0, 80) : 'Prüfung',
+    lineLength: num(o.lineLength, 32),
+    timeLimit: TIME_OPTIONS.includes(o.timeLimit) ? o.timeLimit : 0,   // Minuten, 0 = aus
+    weights: Array.isArray(o.weights) ? o.weights.map(x => num(x, 1)) : [7, 3, 1],
+    lines: []
+  };
+  // Netzwerkversion: für wen die Prüfung bestimmt ist (Nutzer-IDs); fehlt das Feld, gilt sie für alle
+  if (Array.isArray(o.for) && o.for.length) e.for = o.for.filter(x => typeof x === 'string' && /^[0-9a-f]{16}$/.test(x));
+  (Array.isArray(o.lines) ? o.lines : []).forEach(l => {
+    const line = { lineCheck: !!l.lineCheck, blocks: [] };
+    (Array.isArray(l.blocks) ? l.blocks : []).forEach(b => line.blocks.push({
+      length: num(b.length, 7), fillAfter: num(b.fillAfter, 0),
+      content: typeof b.content === 'string' ? b.content.toUpperCase().replace(/[^0-9A-Z<]/g, '') : ''
+    }));
+    e.lines.push(line);
+  });
+  return e;
+}
+
+if (typeof module !== 'undefined') module.exports = { value, checkDigit, weightedSum, example, compute, validate, working, randomFill, sanitize, used, RANDOM_LETTERS };
+
+</script>
+<script>
+/* Prüfer-PIN und Prüfungssperre.
+   Sichtschutz für eine faire Prüfung – kein Schutz gegen jemanden, der die Entwicklerwerkzeuge
+   des Browsers bedienen kann. Der PIN wird nur gesalzen und gehasht (SHA-256) gespeichert. */
+const PIN_KEY = 'pruefziffer-trainer.pin';
+const LOCK_KEY = 'pruefziffer-trainer.lock';
+
+/** SHA-256 (synchron, ohne crypto.subtle – das fehlt manchen Browsern bei file://). */
+function sha256(text) {
+  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,
+    0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,
+    0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,
+    0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,
+    0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const bytes = Array.from(new TextEncoder().encode(text));
+  const bitLen = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  for (let i = 7; i >= 0; i--) bytes.push(i >= 4 ? 0 : (bitLen >>> (i * 8)) & 0xff);
+  const H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+  const W = new Array(64);
+  for (let o = 0; o < bytes.length; o += 64) {
+    for (let i = 0; i < 16; i++) W[i] = (bytes[o+4*i] << 24) | (bytes[o+4*i+1] << 16) | (bytes[o+4*i+2] << 8) | bytes[o+4*i+3];
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(W[i-15], 7) ^ rotr(W[i-15], 18) ^ (W[i-15] >>> 3);
+      const s1 = rotr(W[i-2], 17) ^ rotr(W[i-2], 19) ^ (W[i-2] >>> 10);
+      W[i] = (W[i-16] + s0 + W[i-7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, hh] = H;
+    for (let i = 0; i < 64; i++) {
+      const t1 = (hh + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + W[i]) | 0;
+      const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      hh = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + hh) | 0;
+  }
+  return H.map(x => (x >>> 0).toString(16).padStart(8, '0')).join('');
+}
+
+function readJson(key) { try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+function writeJson(key, v) { try { if (v === null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(v)); } catch (e) { } }
+
+function hasPin() { const p = readJson(PIN_KEY); return !!(p && p.hash); }
+
+function setPin(pin) {
+  const salt = Array.from({ length: 16 }, () => randomInt(256).toString(16).padStart(2, '0')).join('');
+  writeJson(PIN_KEY, { salt, hash: sha256(salt + ':' + pin) });
+}
+
+function checkPin(pin) {
+  const p = readJson(PIN_KEY);
+  return !!(p && p.hash && sha256(p.salt + ':' + pin) === p.hash);
+}
+
+function removePin() { writeJson(PIN_KEY, null); }
+
+function validPin(pin) { return /^\d{4,12}$/.test(pin); }
+
+/* Laufende Prüfung – übersteht auch Neuladen der Seite. */
+function loadLock() { return readJson(LOCK_KEY); }
+function saveLock(l) { writeJson(LOCK_KEY, l); }
+function clearLock() { writeJson(LOCK_KEY, null); }
+
+/* Prüfer-Einstellungen: Übungsmodus für alle erlaubt oder nur für den angemeldeten Prüfer. */
+const SET_KEY = 'pruefziffer-trainer.settings';
+function loadSettings() { return Object.assign({ practice: true, loginTries: 0, loginBlockedUntil: 0 }, readJson(SET_KEY) || {}); }
+function saveSettings(s) { writeJson(SET_KEY, s); }
+/** Ohne PIN lässt sich der Übungsmodus nicht abschalten – sonst käme niemand mehr heran. */
+function practiceAllowed() { return !hasPin() || loadSettings().practice !== false; }
+
+if (typeof module !== 'undefined') module.exports = { sha256 };
+
+</script>
+<script>
+/* Datenmodell der Netzversion – unabhängig davon, ob ein gemeinsamer Ordner (backend-fs.js)
+   oder ein kleiner Server (backend-http.js) die Dateien speichert. Das Speicher-Modul stellt
+   readText(dir, name), writeText(dir, name, text) und removeFile(dir, name) bereit. */
+const db = { root: null, data: null, usersDir: null, config: null, users: [], exams: [], me: null, meId: null, error: '', raw: {} };
+
+async function readJsonFile(dir, name, fallback) {
+  const t = await readText(dir, name);
+  if (t === null) return fallback;
+  try { return JSON.parse(t); } catch (e) { return fallback; }
+}
+
+const writeJsonFile = (dir, name, v) => writeText(dir, name, JSON.stringify(v, null, 1));
+
+// ------------------------------------------------------------------ Daten
+
+function newSecret(pin) {
+  const salt = Array.from({ length: 16 }, () => randomInt(256).toString(16).padStart(2, '0')).join('');
+  return { salt, hash: sha256(salt + ':' + pin) };
+}
+function secretOk(sec, pin) { return !!(sec && sec.hash && sha256(sec.salt + ':' + pin) === sec.hash); }
+
+async function setupFolder(examinerPin) {
+  db.config = { version: 1, examiner: newSecret(examinerPin), practice: true };
+  await writeJsonFile(db.data, 'config.json', db.config);
+  if (await readText(db.data, 'users.json') === null) await writeJsonFile(db.data, 'users.json', []);
+  if (await readText(db.data, 'exams.json') === null) await writeJsonFile(db.data, 'exams.json', []);
+  await refreshShared();
+}
+
+/** Gemeinsame Dateien neu einlesen. Liefert true, wenn sich etwas geändert hat. */
+async function refreshShared() {
+  let changed = false;
+  for (const [name, key, fallback] of [['config.json', 'config', null], ['users.json', 'users', []], ['exams.json', 'exams', []]]) {
+    const t = await readText(db.data, name);
+    if (t !== db.raw[name]) {
+      db.raw[name] = t;
+      let v = fallback;
+      try { if (t !== null) v = JSON.parse(t); } catch (e) { }
+      if (key === 'exams') v = (Array.isArray(v) ? v : []).map(sanitize);
+      if (key === 'users') v = Array.isArray(v) ? v.filter(u => u && /^[0-9a-f]{16}$/.test(u.id) && u.name) : [];
+      db[key] = v;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function practiceOn() { return !db.config || db.config.practice !== false; }
+
+async function saveConfig() { await writeJsonFile(db.data, 'config.json', db.config); db.raw['config.json'] = null; }
+async function saveUsers() { await writeJsonFile(db.data, 'users.json', db.users); db.raw['users.json'] = null; }
+async function saveExams() { await writeJsonFile(db.data, 'exams.json', db.exams); db.raw['exams.json'] = null; }
+
+function emptyUserFile() { return { pin: null, exams: [], lock: null, release: null, last: null }; }
+
+async function readUser(id) {
+  const u = await readJsonFile(db.usersDir, id + '.json', null);
+  if (!u) return null;
+  return Object.assign(emptyUserFile(), u, { exams: (Array.isArray(u.exams) ? u.exams : []).map(sanitize) });
+}
+
+/** Nutzerdatei ändern: frisch einlesen, Änderung anwenden, schreiben – Felder des anderen bleiben erhalten. */
+async function updateUser(id, change) {
+  const u = (await readUser(id)) || emptyUserFile();
+  change(u);
+  await writeJsonFile(db.usersDir, id + '.json', u);
+  return u;
+}
+
+async function createUser(name, pin) {
+  const id = Array.from({ length: 8 }, () => randomInt(256).toString(16).padStart(2, '0')).join('');
+  await writeJsonFile(db.usersDir, id + '.json', Object.assign(emptyUserFile(), { pin: newSecret(pin) }));
+  db.users.push({ id, name });
+  await saveUsers();
+  return id;
+}
+
+async function deleteUser(id) {
+  db.users = db.users.filter(u => u.id !== id);
+  await saveUsers();
+  try { await removeFile(db.usersDir, id + '.json'); } catch (e) { }
+}
+
+/** Eigene Datei des angemeldeten Nutzers speichern (eigene Prüfungen, laufende Prüfung, PIN). */
+async function saveMe(fields) {
+  const me = db.me;
+  const u = await updateUser(db.meId, f => {
+    for (const k of fields) f[k] = me[k];
+  });
+  db.me.release = u.release;
+}
+
+</script>
+<script>
+/* Gemeinsamer Ordner (z. B. auf einer Netzwerk-Festplatte) als Datenspeicher.
+   Nutzt die File-System-Access-Schnittstelle von Edge und Chrome. Kein Server, kein Internet.
+
+   Ordner „Pruefziffer-Daten“:
+     config.json        Prüfer-PIN (gesalzen + gehasht), Übungsmodus an/aus      – schreibt nur der Prüfer
+     users.json         Liste der Nutzer (id, Name)                             – schreibt nur der Prüfer
+     exams.json         gemeinsame Prüfungen                                    – schreibt nur der Prüfer
+     users/<id>.json    je Nutzer: PIN, eigene Prüfungen, laufende Prüfung      – schreibt der Nutzer,
+                        der Prüfer nur Freigabe und PIN-Rücksetzung (vorher frisch eingelesen)
+   Jeder schreibt also im Wesentlichen nur „seine“ Dateien – so kommen sich mehrere Geräte nicht in die Quere. */
+const DATA_DIR = 'Pruefziffer-Daten';
+const FS_SUPPORTED = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+
+const BACKEND = 'fs';
+
+// ------------------------------------------------------------------ Ordner merken (IndexedDB)
+
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('pruefziffer-netz', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('handles');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbGet(key) {
+  try {
+    const d = await idb();
+    return await new Promise(res => { const q = d.transaction('handles').objectStore('handles').get(key); q.onsuccess = () => res(q.result); q.onerror = () => res(null); });
+  } catch (e) { return null; }
+}
+async function idbSet(key, v) {
+  try {
+    const d = await idb();
+    await new Promise(res => { const t = d.transaction('handles', 'readwrite'); t.objectStore('handles').put(v, key); t.oncomplete = res; t.onerror = res; });
+  } catch (e) { }
+}
+
+// ------------------------------------------------------------------ Dateien
+
+async function readText(dir, name) {
+  try {
+    const fh = await dir.getFileHandle(name);
+    return await (await fh.getFile()).text();
+  } catch (e) {
+    if (e.name === 'NotFoundError') return null;
+    throw e;
+  }
+}
+
+async function removeFile(dir, name) {
+  try { await dir.removeEntry(name); } catch (e) { if (e.name !== 'NotFoundError') throw e; }
+}
+
+async function writeText(dir, name, text) {
+  const fh = await dir.getFileHandle(name, { create: true });
+  const w = await fh.createWritable();      // schreibt in eine Hilfsdatei und tauscht beim Schließen aus
+  await w.write(text);
+  await w.close();
+}
+
+// ------------------------------------------------------------------ Verbinden
+
+/** Ordner übernehmen: Ist es nicht schon „Pruefziffer-Daten“, wird der Unterordner benutzt bzw. angelegt. */
+async function useRoot(root) {
+  db.root = root;
+  db.data = root.name === DATA_DIR ? root : await root.getDirectoryHandle(DATA_DIR, { create: true });
+  db.usersDir = await db.data.getDirectoryHandle('users', { create: true });
+  db.config = await readJsonFile(db.data, 'config.json', null);
+  await refreshShared();
+}
+
+async function pickFolder() {
+  const root = await window.showDirectoryPicker({ id: 'pruefziffer', mode: 'readwrite' });
+  await idbSet('root', root);
+  await useRoot(root);
+}
+
+/** Beim Start: gemerkten Ordner wieder verbinden (Rückfrage des Browsers braucht einen Klick). */
+async function savedFolder() { return await idbGet('root'); }
+
+async function reconnect(handle, ask) {
+  const opts = { mode: 'readwrite' };
+  let p = await handle.queryPermission(opts);
+  if (p !== 'granted' && ask) p = await handle.requestPermission(opts);
+  if (p !== 'granted') return false;
+  await useRoot(handle);
+  return true;
+}
+
+/** Nur für automatische Tests: browsereigener Speicher statt Netzlaufwerk (Adresse mit #opfs). */
+async function useTestStorage() { await useRoot(await navigator.storage.getDirectory()); }
+
+
+</script>
+<script>
+/* Erklärseite mit Wertetabelle, Einmaleins der Gewichte und durchgerechnetem Beispiel. */
+const CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ<';
+
+/** Kompakte Zeichen-Wert-Tabelle (auch aufklappbar in der Prüfung). */
+function valueTable() {
+  const rows = [];
+  for (let i = 0; i < CHARS.length; i += 10) {
+    const part = CHARS.slice(i, i + 10).split('');
+    rows.push(h('tr', {}, h('th', {}, 'Zeichen'), part.map(c => h('td', { class: 'mono big' }, c))));
+    rows.push(h('tr', { class: 'vals' }, h('th', {}, 'Wert'), part.map(c => h('td', { class: 'mono' }, value(c)))));
+  }
+  return h('div', { class: 'tablewrap' }, h('table', { class: 'values' }, h('tbody', {}, rows)));
+}
+
+/** Einmaleins: Wert × Gewicht, die Einerstelle hervorgehoben – nur sie zählt für die Prüfziffer.
+    Zwei Hälften nebeneinander, damit es auf eine Druckseite passt. */
+function productTable() {
+  const chars = CHARS.split('').filter(c => c !== '<');
+  const half = Math.ceil(chars.length / 2);
+  const part = list => h('table', { class: 'products' },
+    h('thead', {}, h('tr', {}, h('th', {}, 'Zeichen'), h('th', {}, 'Wert'), ALLOWED_WEIGHTS.map(w => h('th', {}, '× ' + w)))),
+    h('tbody', {}, list.map(c => h('tr', {},
+      h('td', { class: 'mono big' }, c), h('td', { class: 'mono' }, value(c)),
+      ALLOWED_WEIGHTS.map(w => {
+        const s = String(value(c) * w);
+        return h('td', { class: 'mono' }, s.length > 1 ? h('span', { class: 'tens' }, s.slice(0, -1)) : null, h('b', {}, s.slice(-1)));
+      })))));
+  return h('div', { class: 'tablewrap pairs' }, part(chars.slice(0, half)), part(chars.slice(half)));
+}
+
+/** Schritt-für-Schritt-Tabelle: so rechnet man auf Papier, nur mit Einerstellen. */
+function stepTable(text, w) {
+  let run = 0;
+  const body = text.split('').map((c, i) => {
+    const g = w[i % w.length], p = value(c) * g;
+    run = (run + p) % 10;
+    return h('tr', {}, h('td', {}, i + 1), h('td', { class: 'mono big' }, c), h('td', { class: 'mono' }, value(c)),
+      h('td', { class: 'mono' }, g), h('td', { class: 'mono' }, p), h('td', { class: 'mono' }, p % 10), h('td', { class: 'mono strong' }, run));
+  });
+  return h('div', { class: 'tablewrap' }, h('table', { class: 'tasks steps' },
+    h('thead', {}, h('tr', {}, ['Stelle', 'Zeichen', 'Wert', 'Gewicht', 'Produkt', 'Einer', 'Summe (Einer)'].map(t => h('th', {}, t)))),
+    h('tbody', {}, body)));
+}
+
+function explainView() {
+  const icao = [7, 3, 1];
+  return h('section', { class: 'explain' },
+    h('div', { class: 'bar noprint' },
+      h('button', { onclick: () => go('list') }, '← Zur Übersicht'),
+      h('button', { onclick: () => window.print() }, 'Drucken')),
+    h('h2', {}, 'So funktioniert die Prüfziffer'),
+    h('p', {}, 'Eine Prüfziffer erkennt Lese- und Tippfehler: Aus den Zeichen davor wird nach einer festen Regel eine Ziffer ',
+      'berechnet und mit abgedruckt. Stimmt sie beim Nachrechnen nicht, ist irgendwo ein Zeichen falsch. ',
+      'Der Trainer nutzt das Verfahren aus ICAO 9303, nach dem auch Pässe und Ausweise rechnen – nur mit frei wählbaren Gewichten.'),
+
+    h('h3', {}, '1. Zeichen in Zahlen umwandeln'),
+    h('p', {}, 'Ziffern behalten ihren Wert, Buchstaben zählen von A = 10 bis Z = 35, das Füllzeichen < zählt 0.'),
+    valueTable(),
+
+    h('h3', {}, '2. Rechnen'),
+    h('ol', {},
+      h('li', {}, 'Jeden Zeichenwert mit seinem Gewicht malnehmen. Die Gewichte wiederholen sich der Reihe nach: ',
+        'bei 7-3-1 also 7, 3, 1, 7, 3, 1 …'),
+      h('li', {}, 'Alle Produkte zusammenzählen.'),
+      h('li', {}, 'Die Prüfziffer ist der Rest beim Teilen durch 10 – also einfach die letzte Stelle der Summe.')),
+
+    h('h3', {}, '3. Beispiel'),
+    h('p', {}, 'Dokumentnummer des ICAO-Musterpasses, Gewichte 7-3-1:'),
+    h('p', { class: 'mono example' }, 'L898902C3'),
+    stepTable('L898902C3', icao),
+    h('p', {}, 'Ergebnis: ', h('code', {}, working({ input: 'L898902C3', sum: weightedSum('L898902C3', icao),
+      digit: checkDigit('L898902C3', icao) }, icao))),
+
+    h('h3', {}, '4. Rechentipps für Kopf und Papier'),
+    h('ul', {},
+      h('li', {}, h('strong', {}, 'Nur Einerstellen zählen. '),
+        'Von jedem Produkt reicht die letzte Ziffer, und auch die Summe darf man laufend auf die letzte Ziffer kürzen ',
+        '(Spalte „Summe (Einer)“). So bleibt jede Zwischenrechnung einstellig.'),
+      h('li', {}, h('strong', {}, 'Füllzeichen zählen 0 – aber sie belegen eine Stelle. '),
+        'Das Gewicht läuft über sie weiter. „120“ ergibt mit 7-3-1 die Prüfziffer ' + checkDigit('120', icao)
+        + ', „<120“ dagegen ' + checkDigit('<120', icao) + '. Nur Füllzeichen am Ende ändern nichts.'),
+      h('li', {}, h('strong', {}, 'Gewicht 1 ist geschenkt: '), 'Der Wert bleibt, wie er ist (bei Buchstaben dessen Einerstelle).'),
+      h('li', {}, h('strong', {}, 'Bei 9 rechnen: '), '× 9 ist dasselbe wie „10 minus Einerstelle“ – 4 × 9 = 36, Einer 6 = 10 − 4.'),
+      h('li', {}, h('strong', {}, 'Zeilen- und Gesamtprüfziffer: '),
+        'Die Blockprüfziffern stehen ja schon in der Zeile und rechnen mit. Wer Zeile für Zeile die Einer-Summen notiert, ',
+        'muss für die Gesamtprüfziffer nur noch aufpassen, an welcher Stelle der Gewichtsfolge die nächste Zeile beginnt.')),
+
+    h('h3', {}, '5. Warum nur die Gewichte 1, 3, 7 und 9?'),
+    h('p', {}, 'Nur diese Zahlen haben mit 10 keinen gemeinsamen Teiler. Dann erzeugt jeder Wert eine andere Einerstelle, ',
+      'und jeder einzelne falsche Ziffernwert fällt auf. Mit Gewicht 2 dagegen ergeben 3 und 8 dieselbe Einerstelle ',
+      '(6 und 16), mit Gewicht 5 enden alle geraden Werte auf 0 und alle ungeraden auf 5 – solche Fehler blieben unentdeckt.'),
+
+    h('h3', {}, '6. Aufbau und Schreibweise'),
+    h('ul', {},
+      h('li', {}, h('strong', {}, 'Z1S8 '), 'bedeutet Zeile 1, Spalte 8. Das Raster zeigt die Spalten oben und die Zeilen links.'),
+      h('li', {}, h('strong', {}, 'Blockprüfziffer: '), 'steht direkt hinter dem Block und rechnet nur über seine Zeichen.'),
+      h('li', {}, h('strong', {}, 'Zeilenprüfziffer: '), 'an der letzten Stelle der Zeile, über alle Zeichen davor – Blöcke, Blockprüfziffern und Füllzeichen.'),
+      h('li', {}, h('strong', {}, 'Gesamtprüfziffer: '), 'an der letzten Stelle der letzten Zeile, über alle Zeichen aller Zeilen davor, einschließlich der Zeilenprüfziffern.')),
+
+    h('h3', {}, '7. Bedienung'),
+    typeof NET !== 'undefined' ? h('ul', {},
+      h('li', {}, h('strong', {}, 'Anmelden: '), 'Name wählen und eigenen PIN eingeben. Den PIN vergibt der Prüfer; ändern geht unter „Mein PIN“.'),
+      h('li', {}, h('strong', {}, 'Üben: '), 'Prüfungen vom Prüfer oder eigene Übungen selbst auswerten, Lösung mit Rechenweg ansehen, mit 🎲 neue Zeichen würfeln – sofern der Prüfer den Übungsmodus erlaubt.'),
+      h('li', {}, h('strong', {}, '🔒 Prüfung: '), 'läuft in der eigenen Datei, auch nach Neuladen oder erneuter Anmeldung. Ergebnis und Lösung gibt der Prüfer frei – an seinem Gerät oder mit seinem PIN am Gerät des Prüflings.'),
+      h('li', {}, h('strong', {}, '🔑 Prüfer: '), 'legt Nutzer und Prüfungen an – für alle, für einzelne oder mit 🎲 für jeden einzeln ausgewürfelt – sieht unter „Nutzer und Abgaben“ den Stand aller Prüfungen und schaltet den Übungsmodus ein oder aus.'),
+      h('li', {}, h('strong', {}, '⏱ Zeitvorgabe: '), 'beim Bearbeiten unter „Aufbau“. Beim Üben abschaltbar, in der Prüfung nicht.')) :
+    h('ul', {},
+      h('li', {}, h('strong', {}, 'Üben: '), 'selbst auswerten, Lösung mit Rechenweg ansehen, mit 🎲 neue Zeichen würfeln.'),
+      h('li', {}, h('strong', {}, '🔒 Prüfung: '), 'Ergebnis und Lösung gibt nur der Prüfer mit seinem PIN frei. Vorher unter „🔑 Prüfer-PIN festlegen“ einrichten.'),
+      h('li', {}, h('strong', {}, '🔑 Prüfer: '), 'Anmelden mit PIN. In den Prüfer-Einstellungen lässt sich der Übungsmodus für alle abschalten – '
+        + 'dann können nur noch der angemeldete Prüfer üben und Prüfungen anlegen, bearbeiten, importieren oder exportieren.'),
+      h('li', {}, h('strong', {}, '⏱ Zeitvorgabe: '), 'beim Bearbeiten unter „Aufbau“ einstellen. Beim Üben abschaltbar, in der Prüfung nicht.'),
+      h('li', {}, h('strong', {}, 'Mitnehmen: '), 'Prüfungen werden im Browser gespeichert. Für einen anderen PC exportieren und dort importieren.')),
+    h('h3', { class: 'newpage' }, 'Anhang: Einmaleins der Gewichte'),
+    h('p', {}, 'Zeichenwert × Gewicht; fett ist die Einerstelle, die allein zählt.'),
+    productTable(),
+
+    h('div', { class: 'bar noprint' }, h('button', { onclick: () => go('list') }, '← Zur Übersicht')));
+}
+
+</script>
+<script>
+/* Netzwerkversion: mehrere Nutzer über einen gemeinsamen Ordner. Übernimmt Rechenkern, Raster und Erklärung
+   der Einzelplatzversion. */
+const NET = true;
+const state = { view: 'connect', who: null, ref: null, edit: null, exam: null, result: null, solution: false, answers: [], evaluated: false, msg: '' };
+const app = document.getElementById('app');
+
+// ------------------------------------------------------------------ Baukasten
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'class') el.className = v;
+    else if (k === 'value') el.value = v;
+    else if (k === 'checked') el.checked = v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat(Infinity)) if (c !== null && c !== undefined && c !== false) el.append(c.nodeType ? c : String(c));
+  return el;
+}
+
+function range(a, b) { const r = []; for (let i = a; i <= b; i++) r.push(i); return r; }
+
+function select(values, current, onchange, label) {
+  return h('select', { 'aria-label': label, onchange: e => onchange(Number(e.target.value)) },
+    values.map(v => h('option', { value: v, selected: v === current }, v)));
+}
+
+function field(label, control) { return h('label', { class: 'field' }, h('span', {}, label), control); }
+
+function pinInputEl(label) {
+  return h('input', { type: 'password', inputmode: 'numeric', autocomplete: 'off', maxlength: 12, 'aria-label': label, class: 'pin' });
+}
+
+function summary(e) {
+  const blocks = e.lines.reduce((n, l) => n + l.blocks.length, 0);
+  return e.lines.length + ' Zeilen × ' + e.lineLength + ' Zeichen · ' + blocks + ' Blöcke · Gewichte ' + e.weights.join('-')
+    + (e.timeLimit ? ' · ⏱ ' + e.timeLimit + ' min' : '');
+}
+
+function fmt(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+function time(ms) { return new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }
+
+const isExaminer = () => !!(state.who && state.who.role === 'examiner');
+const isUser = () => !!(state.who && state.who.role === 'user');
+/** Üben, eigene Prüfungen anlegen: Prüfer immer, Nutzer nur bei eingeschaltetem Übungsmodus. */
+const canPractice = () => isExaminer() || (isUser() && practiceOn());
+
+function go(view, extra) {
+  Object.assign(state, { view, msg: '' }, extra || {});
+  render();
+  window.scrollTo(0, 0);
+}
+
+function render() {
+  if (!db.data && state.view !== 'connect') state.view = 'connect';
+  if (db.data && !db.config && state.view !== 'connect') state.view = 'setup';
+  if (db.config && !state.who && !['connect', 'setup', 'login', 'explain'].includes(state.view)) state.view = 'login';
+  if (['edit'].includes(state.view) && !(isExaminer() || canPractice())) state.view = 'list';
+  if (state.view === 'exam' && !state.locked && !state.released && !canPractice()) state.view = 'list';
+  if (['users', 'settings'].includes(state.view) && !isExaminer()) state.view = 'list';
+  const views = { connect: connectView, setup: setupView, login: loginView, list: listView, edit: editView, exam: examView,
+    users: usersView, settings: settingsView, account: accountView, explain: explainView, invite: inviteView };
+  app.replaceChildren(...[errorBanner(), (views[state.view] || listView)()].filter(Boolean));
+  document.getElementById('who').textContent = state.who ? (isExaminer() ? '🔑 Prüfer' : '👤 ' + state.who.name) : '';
+}
+
+function errorBanner() {
+  return db.error ? h('p', { class: 'warn' }, '⚠ ' + db.error) : null;
+}
+
+/** Schreibzugriff mit Fehlermeldung statt stillem Scheitern (z. B. Netzlaufwerk nicht erreichbar). */
+async function guarded(fn) {
+  try {
+    await fn();
+    db.error = '';
+    return true;
+  } catch (e) {
+    db.error = (BACKEND === 'http' ? 'Server nicht erreichbar' : 'Gemeinsamer Ordner nicht erreichbar oder schreibgeschützt') + ' (' + (e.message || e.name) + ').';
+    render();
+    return false;
+  }
+}
+
+// ------------------------------------------------------------------ Ordner verbinden und einrichten
+
+const placeLabel = () => (BACKEND === 'http' ? 'Server: ' : 'Gemeinsamer Ordner: ') + db.root.name;
+
+function connectView() {
+  if (BACKEND === 'http') {
+    return h('section', {},
+      h('h2', {}, 'Verbindung zum Server'),
+      state.msg ? h('p', { class: 'warn' }, state.msg) : h('p', {}, 'Verbinde …'),
+      h('p', { class: 'muted' }, 'Läuft das Programm „Pruefziffer-Server“ auf dem PC bzw. ist das NAS eingeschaltet? Ist dieses Gerät im selben WLAN?'),
+      h('div', { class: 'bar' }, h('button', { class: 'primary', onclick: startHttp }, 'Erneut versuchen')));
+  }
+  if (!FS_SUPPORTED && location.hash !== '#opfs') {
+    return h('section', {},
+      h('h2', {}, 'Bitte Edge oder Chrome verwenden'),
+      h('p', {}, 'Die Netzwerkversion speichert in einem gemeinsamen Ordner. Das erlauben derzeit nur Microsoft Edge und Google Chrome am PC. '
+        + 'Firefox, Safari und Handys können das nicht – dort bitte die Einzelplatzversion nutzen.'));
+  }
+  const saved = state.savedRoot;
+  return h('section', {},
+    h('h2', {}, 'Gemeinsamen Ordner verbinden'),
+    h('p', {}, 'Alle Mitspieler verbinden sich mit demselben Ordner, z. B. auf der Netzwerk-Festplatte. '
+      + 'Darin legt der Trainer einen Unterordner „' + DATA_DIR + '“ mit allen Daten an.'),
+    h('p', { class: 'muted' }, 'Der Browser fragt einmal nach, ob die Seite in diesen Ordner schreiben darf – bitte erlauben.'),
+    state.msg ? h('p', { class: 'warn' }, state.msg) : null,
+    h('div', { class: 'bar' },
+      saved ? h('button', { class: 'primary', onclick: async () => {
+        try { if (await reconnect(saved, true)) afterConnect(); else go('connect', { msg: 'Zugriff nicht erlaubt.' }); }
+        catch (e) { go('connect', { msg: 'Ordner nicht erreichbar: ' + (e.message || e.name) }); }
+      } }, 'Mit „' + saved.name + '“ verbinden') : null,
+      h('button', { class: saved ? null : 'primary', onclick: async () => {
+        try { await pickFolder(); afterConnect(); }
+        catch (e) { if (e.name !== 'AbortError') go('connect', { msg: 'Ordner nicht nutzbar: ' + (e.message || e.name) }); }
+      } }, saved ? 'Anderen Ordner wählen' : 'Ordner wählen')));
+}
+
+function afterConnect() {
+  db.error = '';
+  go(db.config ? 'login' : 'setup');
+}
+
+function setupView() {
+  const a = pinInputEl('Prüfer-PIN'), b = pinInputEl('Wiederholung');
+  return h('section', {},
+    h('h2', {}, BACKEND === 'http' ? 'Trainer einrichten' : 'Ordner einrichten'),
+    h('p', {}, (BACKEND === 'http' ? 'Auf dem Server' : 'In „' + db.root.name + '“') + ' gibt es noch keine Trainer-Daten. Wer hier einrichtet, wird Prüfer: '
+      + 'Er legt die Nutzer mit ihren PINs an, erstellt die Prüfungen – für alle oder für einzelne – und gibt Ergebnisse frei.'),
+    h('fieldset', {}, field('Prüfer-PIN (4–12 Ziffern)', a), field('Wiederholung', b)),
+    state.msg ? h('p', { class: 'warn' }, state.msg) : null,
+    h('div', { class: 'bar' }, h('button', { class: 'primary', onclick: async () => {
+      if (!validPin(a.value)) return go('setup', { msg: 'Der PIN muss aus 4 bis 12 Ziffern bestehen.' });
+      if (a.value !== b.value) return go('setup', { msg: 'Die beiden PINs stimmen nicht überein.' });
+      if (await guarded(() => setupFolder(a.value))) go('list', { who: { role: 'examiner' } });
+    } }, 'Einrichten')));
+}
+
+// ------------------------------------------------------------------ Anmeldung
+
+const LOGIN_KEY = 'pruefziffer-netz.login';
+function loginGuard() { try { return JSON.parse(localStorage.getItem(LOGIN_KEY)) || { tries: 0, until: 0 }; } catch (e) { return { tries: 0, until: 0 }; } }
+function setLoginGuard(g) { try { localStorage.setItem(LOGIN_KEY, JSON.stringify(g)); } catch (e) { } }
+
+function loginView() {
+  const guard = loginGuard();
+  const blocked = Date.now() < guard.until;
+  if (blocked) setTimeout(() => { if (state.view === 'login') render(); }, guard.until - Date.now() + 50);
+  const who = h('select', { 'aria-label': 'Name' },
+    h('option', { value: '' }, '– Name wählen –'),
+    db.users.slice().sort((x, y) => x.name.localeCompare(y.name, 'de')).map(u => h('option', { value: u.id, selected: u.id === state.lastUser }, u.name)),
+    h('option', { value: '#examiner' }, '🔑 Prüfer'));
+  const pin = pinInputEl('PIN');
+  const login = async () => {
+    const g = loginGuard();
+    if (Date.now() < g.until) return;
+    const id = who.value;
+    if (!id) return go('login', { msg: 'Bitte einen Namen wählen.' });
+    state.lastUser = id;            // Auswahl bleibt nach einem Fehlversuch stehen
+    let ok = false, whoObj = null;
+    if (id === '#examiner') {
+      await guarded(refreshShared);
+      ok = secretOk(db.config.examiner, pin.value);
+      whoObj = { role: 'examiner' };
+    } else {
+      const u = await readUser(id);
+      ok = !!u && secretOk(u.pin, pin.value);
+      const entry = db.users.find(x => x.id === id);
+      whoObj = { role: 'user', id, name: entry ? entry.name : '?' };
+      if (ok) { db.me = u; db.meId = id; }
+    }
+    if (ok) {
+      setLoginGuard({ tries: 0, until: 0 });
+      state.who = whoObj;
+      state.lastUser = id;
+      if (isUser() && db.me.lock && db.me.lock.exam) return enterLocked(db.me.lock);
+      return go('list');
+    }
+    g.tries++;
+    let text = 'Name oder PIN falsch.';
+    if (g.tries >= 3) { g.tries = 0; g.until = Date.now() + 30000; text = 'Dreimal falsch – 30 Sekunden Pause.'; }
+    setLoginGuard(g);
+    go('login', { msg: text });
+  };
+  pin.addEventListener('keydown', ev => { if (ev.key === 'Enter') login(); });
+  return h('section', {},
+    h('h2', {}, 'Anmelden'),
+    h('p', { class: 'muted' }, placeLabel() + (db.users.length ? '' : ' · Noch keine Nutzer – der Prüfer legt sie an.')),
+    h('fieldset', {}, field('Name', who), field('PIN', pin)),
+    blocked && !state.msg ? h('p', { class: 'warn' }, 'Dreimal falsch – kurze Pause.') : state.msg ? h('p', { class: 'warn' }, state.msg) : null,
+    h('div', { class: 'bar' },
+      h('button', { class: 'primary', disabled: blocked, onclick: login }, 'Anmelden'),
+      h('button', { onclick: () => go('explain') }, '📖 Erklärung')));
+}
+
+function logout() {
+  Object.assign(state, { who: null, locked: false, lock: null, exam: null });
+  db.me = null; db.meId = null;
+  go('login');
+}
+
+// ------------------------------------------------------------------ Übersicht
+
+function listView() {
+  const ex = isExaminer(), practice = canPractice();
+  const mine = isUser() && db.me ? db.me.exams : [];
+  // Prüfungen mit ursprünglicher Nummer; Nutzer sehen nur die für alle und die für sie bestimmten
+  const shared = db.exams.map((e, i) => ({ e, i })).filter(x => ex || isFor(x.e, state.who.id));
+  const fileInput = h('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: importFile });
+
+  const card = (e, src, i) => h('article', { class: 'card' },
+    h('div', { class: 'cardtext' }, h('strong', {}, e.name), h('span', { class: 'muted' }, summary(e)),
+      ex && src === 'shared' ? h('span', { class: 'forwhom' }, '👥 ' + forText(e)) : null),
+    h('div', { class: 'bar small' },
+      practice ? h('button', { class: 'primary', onclick: () => openExam(src, i) }, 'Üben') : null,
+      isUser() && src === 'shared' ? h('button', { class: practice ? null : 'primary', onclick: () => startLocked(clone(e)) }, '🔒 Prüfung') : null,
+      (ex && src === 'shared') || (isUser() && src === 'mine' && practice)
+        ? [h('button', { onclick: () => go('edit', { ref: { src, idx: i }, edit: clone(e) }) }, 'Bearbeiten'),
+           h('button', { onclick: () => saveExam({ src, idx: -1 }, Object.assign(clone(e), { name: e.name + ' (Kopie)' })) }, 'Kopieren'),
+           ex && src === 'shared' && db.users.length ? h('button', { title: 'Gleicher Aufbau, für jeden Nutzer eigene Zeichen', onclick: () => rollForEach(e) }, '🎲 Für jeden einzeln') : null,
+           h('button', { class: 'danger', onclick: () => { if (confirm('„' + e.name + '“ löschen?')) removeExam({ src, idx: i }); } }, 'Löschen')]
+        : null));
+
+  return h('section', {},
+    ex ? h('p', { class: 'adminbanner' }, '🔑 Als Prüfer angemeldet' + (practiceOn() ? '' : ' – Übungsmodus für Nutzer ist abgeschaltet') + '.') : null,
+    isUser() && !practiceOn() ? h('p', { class: 'lockbanner' }, 'Der Übungsmodus ist vom Prüfer abgeschaltet. Prüfungen schreiben geht weiterhin.') : null,
+    h('div', { class: 'bar' },
+      ex ? h('button', { class: 'primary', onclick: () => go('edit', { ref: { src: 'shared', idx: -1 }, edit: example() }) }, 'Neue Prüfung') : null,
+      isUser() && practice ? h('button', { class: 'primary', onclick: () => go('edit', { ref: { src: 'mine', idx: -1 }, edit: example() }) }, 'Neue eigene Übung') : null,
+      ex ? h('button', { onclick: () => go('users') }, '👥 Nutzer und Abgaben') : null,
+      ex ? h('button', { onclick: () => go('settings') }, '⚙ Einstellungen') : null,
+      ex && BACKEND === 'http' ? h('button', { onclick: () => go('invite') }, '📱 Mitspieler einladen') : null,
+      ex ? h('button', { onclick: exportShared, disabled: !shared.length }, 'Exportieren') : null,
+      ex ? h('button', { onclick: () => fileInput.click() }, 'Importieren') : null,
+      isUser() ? h('button', { onclick: () => go('account') }, 'Mein PIN') : null,
+      h('button', { onclick: () => go('explain') }, '📖 Erklärung'),
+      h('button', { onclick: logout }, 'Abmelden'),
+      fileInput),
+    h('h2', {}, ex ? 'Prüfungen' : 'Prüfungen vom Prüfer'),
+    shared.length ? shared.map(x => card(x.e, 'shared', x.i)) : h('p', { class: 'muted' }, ex ? 'Noch keine – „Neue Prüfung“ oder Import aus der Einzelplatzversion.' : 'Der Prüfer hat für dich noch keine Prüfungen angelegt.'),
+    isUser() && practice ? [h('h2', {}, 'Meine Übungen'),
+      mine.length ? mine.map((e, i) => card(e, 'mine', i)) : h('p', { class: 'muted' }, 'Eigene Übungen sieht nur der, der sie angelegt hat.')] : null,
+    isUser() ? h('p', { class: 'muted note' }, '🔒 Prüfung: Ergebnis und Lösung gibt der Prüfer frei – an seinem Gerät oder mit seinem PIN an deinem.') : null);
+}
+
+/** Ist die Prüfung für diesen Nutzer bestimmt? Ohne Auswahl gilt sie für alle. */
+function isFor(e, id) { return !(Array.isArray(e.for) && e.for.length) || e.for.includes(id); }
+
+function forText(e) {
+  if (!(Array.isArray(e.for) && e.for.length)) return 'für alle';
+  const names = e.for.map(id => (db.users.find(u => u.id === id) || {}).name).filter(Boolean);
+  return names.length ? 'nur für ' + names.join(', ') : 'für niemand (Nutzer gelöscht)';
+}
+
+/** Für jeden Nutzer eine eigene Prüfung mit gleichem Aufbau und eigenen Zeichen. */
+async function rollForEach(e) {
+  const letters = e.lines.some(l => l.blocks.some(b => /[A-Z]/.test(b.content)));
+  if (!confirm('„' + e.name + '“ für jeden der ' + db.users.length + ' Nutzer einzeln auswürfeln?\n\n'
+    + 'Jeder bekommt eine eigene Prüfung mit gleichem Aufbau und anderen Zeichen (' + (letters ? 'Ziffern und Buchstaben' : 'nur Ziffern') + ').')) return;
+  await guarded(async () => {
+    await refreshShared();
+    for (const u of db.users) {
+      const c = clone(e);
+      delete c.for;
+      randomFill(c, letters);
+      c.name = e.name + ' – ' + u.name;
+      c.for = [u.id];
+      db.exams.push(c);
+    }
+    await saveExams();
+  });
+  render();
+}
+
+async function saveExam(ref, e) {
+  await guarded(async () => {
+    if (ref.src === 'shared') {
+      await refreshShared();
+      if (ref.idx >= 0 && ref.idx < db.exams.length) db.exams[ref.idx] = e; else db.exams.push(e);
+      await saveExams();
+    } else {
+      if (ref.idx >= 0 && ref.idx < db.me.exams.length) db.me.exams[ref.idx] = e; else db.me.exams.push(e);
+      await saveMe(['exams']);
+    }
+  });
+  render();
+}
+
+async function removeExam(ref) {
+  await guarded(async () => {
+    if (ref.src === 'shared') { await refreshShared(); db.exams.splice(ref.idx, 1); await saveExams(); }
+    else { db.me.exams.splice(ref.idx, 1); await saveMe(['exams']); }
+  });
+  render();
+}
+
+function exportShared() {
+  const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(db.exams, null, 1)], { type: 'application/json' })),
+    download: 'pruefungen-' + new Date().toISOString().slice(0, 10) + '.json' });
+  document.body.append(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+function importFile(ev) {
+  const f = ev.target.files[0];
+  if (!f) return;
+  f.text().then(async text => {
+    let data = JSON.parse(text);
+    if (!Array.isArray(data)) data = [data];
+    const ok = data.map(sanitize).filter(e => !validate(e).length);
+    await guarded(async () => { await refreshShared(); db.exams.push(...ok); await saveExams(); });
+    alert(ok.length + ' Prüfung(en) importiert' + (ok.length < data.length ? ', ' + (data.length - ok.length) + ' fehlerhaft übersprungen.' : '.'));
+    render();
+  }).catch(() => alert('Datei konnte nicht gelesen werden.'));
+}
+
+// ------------------------------------------------------------------ Raster
+
+function buildCells(e) {
+  const rows = [];
+  let slot = 0;
+  const last = e.lines.length - 1;
+  e.lines.forEach((l, li) => {
+    const cells = [];
+    l.blocks.forEach((b, bi) => {
+      for (let i = 0; i < b.length; i++) cells.push({ ch: b.content[i] || '·', type: b.content[i] ? 'data' : 'empty' });
+      cells.push({ ch: '?', type: 'cd', slot: ++slot });
+      if (bi < l.blocks.length - 1) for (let i = 0; i < b.fillAfter; i++) cells.push({ ch: '<', type: 'fill' });
+    });
+    const tail = (l.lineCheck ? 1 : 0) + (li === last ? 1 : 0);
+    while (cells.length + tail < e.lineLength) cells.push({ ch: '<', type: 'fill' });
+    if (l.lineCheck) cells.push({ ch: '?', type: 'cd', slot: ++slot });
+    if (li === last) cells.push({ ch: '?', type: 'cd', slot: ++slot });
+    cells.forEach((c, i) => { if (i >= e.lineLength) c.over = true; });
+    rows.push(cells);
+  });
+  return rows;
+}
+
+function grid(e, opts) {
+  const rows = buildCells(e);
+  const width = Math.max(e.lineLength, ...rows.map(r => r.length));
+  const head = h('tr', {}, h('th', { class: 'corner' }, ''),
+    range(1, width).map(i => h('th', { class: 'col' + (i > e.lineLength ? ' over' : '') }, 'S' + i)));
+  const body = rows.map((cells, li) => h('tr', {}, h('th', { class: 'row' }, 'Z' + (li + 1)),
+    range(0, width - 1).map(i => {
+      const c = cells[i];
+      if (!c) return h('td', { class: 'blank' }, '');
+      let cls = c.type + (c.over ? ' over' : '');
+      let content = [c.ch];
+      if (c.type === 'cd') {
+        const s = opts && opts.result ? opts.result.slots[c.slot - 1] : null;
+        if (s && opts.solution) { content = [String(s.digit)]; cls += ' solved'; }
+        else content = ['?', h('small', {}, c.slot)];
+        if (s && opts.evaluated) cls += state.answers[c.slot - 1] === String(s.digit) ? ' right' : ' wrong';
+      }
+      return h('td', { class: cls, title: c.type === 'cd' ? 'Aufgabe ' + c.slot : null }, content);
+    })));
+  return h('div', { class: 'gridwrap' + (opts && opts.watermark ? ' muster' : '') },
+    h('table', { class: 'grid', 'aria-label': 'Beispiel-MRZ' }, h('thead', {}, head), h('tbody', {}, body)));
+}
+
+// ------------------------------------------------------------------ Bearbeiten
+
+function editView() {
+  const e = state.edit;
+  const last = e.lines.length - 1;
+  const preview = h('div', {});
+  const status = h('p', { class: 'status' });
+  const lineStatus = [];
+  const rerender = () => render();
+
+  function update() {
+    e.lines.forEach((l, li) => {
+      const u = used(e, li), free = e.lineLength - u;
+      lineStatus[li].textContent = free >= 0
+        ? u + ' von ' + e.lineLength + ' Stellen belegt · ' + free + ' Füllzeichen vor dem Zeilenende'
+        : 'Zeile ist ' + (-free) + ' Zeichen zu lang';
+      lineStatus[li].className = 'linestatus' + (free < 0 ? ' bad' : '');
+    });
+    const err = validate(e);
+    status.textContent = err.length ? err[0] + (err.length > 1 ? ' (+' + (err.length - 1) + ' weitere)' : '') : '✓ Bereit';
+    status.className = 'status ' + (err.length ? 'pending' : 'ready');
+    preview.replaceChildren(grid(e));
+  }
+
+  const lines = e.lines.map((l, li) => {
+    lineStatus[li] = h('p', { class: 'linestatus' });
+    return h('fieldset', {},
+      h('legend', {}, 'Zeile ' + (li + 1)),
+      h('div', { class: 'row2' },
+        field('Blöcke', select(range(LIM.minBlocks, LIM.maxBlocks), l.blocks.length, n => {
+          while (l.blocks.length < n) l.blocks.push({ length: 7, fillAfter: 2, content: '' });
+          l.blocks.length = n;
+          rerender();
+        }, 'Blöcke Zeile ' + (li + 1))),
+        h('label', { class: 'checkline' }, h('input', { type: 'checkbox', checked: l.lineCheck,
+          onchange: ev => { l.lineCheck = ev.target.checked; update(); } }), ' Zeilenprüfziffer am Zeilenende')),
+      li === last ? h('p', { class: 'muted' }, 'Die Gesamtprüfziffer steht an der letzten Stelle dieser Zeile.') : null,
+      l.blocks.map((b, bi) => h('div', { class: 'block' },
+        h('div', { class: 'blockhead' }, 'Block ' + (bi + 1)),
+        h('div', { class: 'row2' },
+          field('Zeichen (ohne Prüfziffer)', select(range(LIM.minBlockLen, LIM.maxBlockLen), b.length, n => {
+            b.length = n;
+            b.content = b.content.slice(0, n);
+            rerender();
+          }, 'Zeichen Block')),
+          bi < l.blocks.length - 1
+            ? field('Füllzeichen danach', select(range(0, LIM.maxFill), b.fillAfter, n => { b.fillAfter = n; update(); }, 'Füllzeichen'))
+            : null),
+        h('input', { class: 'content', value: b.content, maxlength: b.length, spellcheck: 'false', autocomplete: 'off',
+          autocapitalize: 'characters', placeholder: b.length + ' Zeichen: 0–9, A–Z, <', 'aria-label': 'Zeichen Block ' + (bi + 1),
+          oninput: ev => {
+            const t = ev.target;
+            const c = t.value.toUpperCase().replace(/[^0-9A-Z<]/g, '').slice(0, b.length);
+            if (c !== t.value) t.value = c;
+            b.content = c;
+            update();
+          } }))),
+      lineStatus[li]);
+  });
+
+  const shared = state.ref.src === 'shared';
+  const view = h('section', {},
+    h('h2', {}, (state.ref.idx >= 0 ? 'Bearbeiten: ' : 'Neu: ') + (shared ? 'Prüfung' : 'eigene Übung')),
+    field('Name', h('input', { value: e.name, maxlength: 80, oninput: ev => { e.name = ev.target.value; } })),
+    shared ? forWhomBox(e) : null,
+    h('fieldset', {}, h('legend', {}, 'Aufbau'),
+      h('div', { class: 'row2' },
+        field('Zeilen', select(range(LIM.minLines, LIM.maxLines), e.lines.length, n => {
+          while (e.lines.length < n) e.lines.push(defaultLine());
+          e.lines.length = n;
+          rerender();
+        }, 'Zeilen')),
+        field('Zeichen je Zeile', select(range(LIM.minLineLen, LIM.maxLineLen), e.lineLength, n => { e.lineLength = n; update(); }, 'Zeichen je Zeile')),
+        field('Zeitvorgabe', h('select', { 'aria-label': 'Zeitvorgabe', onchange: ev => { e.timeLimit = Number(ev.target.value); } },
+          TIME_OPTIONS.map(m => h('option', { value: m, selected: m === (e.timeLimit || 0) }, m ? m + ' min' : 'aus')))))),
+    h('fieldset', {}, h('legend', {}, 'Gewichte'),
+      h('div', { class: 'row2' },
+        field('Anzahl', select(range(LIM.minWeights, LIM.maxWeights), e.weights.length, n => {
+          while (e.weights.length < n) e.weights.push(1);
+          e.weights.length = n;
+          rerender();
+        }, 'Anzahl Gewichte')),
+        h('div', { class: 'weights' }, e.weights.map((w, wi) =>
+          select(ALLOWED_WEIGHTS, w, n => { e.weights[wi] = n; update(); }, 'Gewicht ' + (wi + 1))))),
+      h('p', { class: 'muted' }, 'Nur 1, 3, 7 und 9 – die übrigen Zahlen erkennen nicht jeden Fehler. Die Gewichte wiederholen sich der Reihe nach.')),
+    lines,
+    h('h3', {}, 'Vorschau'),
+    preview,
+    h('div', { class: 'sticky' },
+      status,
+      h('div', { class: 'bar' },
+        h('button', { onclick: () => { randomFill(e, false); rerender(); } }, '🎲 Würfeln 0–9'),
+        h('button', { onclick: () => { randomFill(e, true); rerender(); } }, '🎲 Würfeln 0–Z'),
+        h('button', { class: 'primary', onclick: async () => {
+          if (!e.name.trim()) e.name = 'Prüfung';
+          if (shared && e.forMode === 'some' && !(e.for && e.for.length)) { alert('Bitte mindestens einen Nutzer auswählen – oder „Alle Nutzer“.'); return; }
+          if (e.forMode !== 'some') delete e.for;
+          delete e.forMode;
+          const err = validate(e);
+          if (err.length) { alert('Noch nicht vollständig:\n\n• ' + err.join('\n• ')); return; }
+          await saveExam(state.ref, e);
+          go('list');
+        } }, 'Speichern'),
+        h('button', { onclick: () => go('list') }, 'Abbrechen'))));
+  update();
+  return view;
+}
+
+/** Auswahl, für wen eine Prüfung gilt. */
+function forWhomBox(e) {
+  if (!e.forMode) e.forMode = Array.isArray(e.for) && e.for.length ? 'some' : 'all';
+  const known = (e.for || []).filter(id => db.users.some(u => u.id === id));
+  e.for = known;
+  const radio = (mode, label) => h('label', { class: 'checkline' }, h('input', { type: 'radio', name: 'forMode', checked: e.forMode === mode,
+    onchange: () => { e.forMode = mode; render(); } }), ' ' + label);
+  return h('fieldset', {}, h('legend', {}, 'Für wen?'),
+    h('div', { class: 'row2' }, radio('all', 'Alle Nutzer'), h('span', {}, '\u00a0\u00a0'), radio('some', 'Nur ausgewählte')),
+    e.forMode === 'some'
+      ? (db.users.length
+          ? h('div', { class: 'weights' }, db.users.map(u => h('label', { class: 'checkline' }, h('input', { type: 'checkbox', checked: e.for.includes(u.id),
+              onchange: ev => { e.for = ev.target.checked ? [...e.for, u.id] : e.for.filter(x => x !== u.id); } }), ' ' + u.name)))
+          : h('p', { class: 'muted' }, 'Noch keine Nutzer angelegt.'))
+      : h('p', { class: 'muted' }, 'Alle angemeldeten Nutzer sehen diese Prüfung.'));
+}
+
+// ------------------------------------------------------------------ Üben
+
+function openExam(src, i) {
+  const e = clone(src === 'shared' ? db.exams[i] : db.me.exams[i]);
+  if (!e || validate(e).length) { alert('Diese Prüfung ist unvollständig.'); return; }
+  const result = compute(e);
+  go('exam', Object.assign({ locked: false, released: false, ref: { src, idx: i }, exam: e, result, solution: false, evaluated: false,
+    answers: result.slots.map(() => ''), useTimer: !!e.timeLimit }, freshTimer(e, !!e.timeLimit)));
+}
+
+function reroll(letters) {
+  const e = clone(state.exam);
+  randomFill(e, letters);
+  e.rolled = true;
+  const result = compute(e);
+  Object.assign(state, { exam: e, result, solution: false, evaluated: false, answers: result.slots.map(() => '') }, freshTimer(e, state.useTimer));
+  render();
+}
+
+async function saveRolled() {
+  const e = clone(state.exam);
+  delete e.rolled;
+  e.name = e.name.replace(/ \(gewürfelt\)$/, '') + ' (gewürfelt)';
+  await saveExam({ src: isExaminer() ? 'shared' : 'mine', idx: -1 }, e);
+  state.exam.rolled = false;
+  state.exam.name = e.name;
+  render();
+}
+
+function examView() {
+  if (state.locked) return lockedView();
+  const e = state.exam, r = state.result;
+  const ok = r.slots.filter((s, i) => state.answers[i] === String(s.digit)).length;
+  const inputs = [];
+  const rows = r.slots.map((s, i) => {
+    const a = state.answers[i];
+    const right = a === String(s.digit);
+    const inp = h('input', { class: 'answer', value: a, inputmode: 'numeric', maxlength: 1, autocomplete: 'off',
+      disabled: state.timeUp, 'aria-label': 'Antwort Aufgabe ' + (i + 1),
+      oninput: ev => {
+        ev.target.value = ev.target.value.replace(/\D/g, '').slice(0, 1);
+        state.answers[i] = ev.target.value;
+        if (ev.target.value && inputs[i + 1]) inputs[i + 1].focus();
+      },
+      onkeydown: ev => { if (ev.key === 'Enter' && inputs[i + 1]) inputs[i + 1].focus(); } });
+    inputs.push(inp);
+    return h('tr', {},
+      h('td', { class: 'num' }, i + 1), h('td', {}, slotTitle(s)),
+      h('td', { class: 'mono' }, place(s.line, s.pos)), h('td', { class: 'mono' }, s.range), h('td', {}, inp),
+      h('td', { class: 'mark ' + (state.evaluated ? (right ? 'right' : 'wrong') : '') }, state.evaluated ? (right ? '✓' : a ? '✗' : '–') : ''),
+      state.solution ? h('td', { class: 'mono solvedcell' }, s.digit) : null);
+  });
+
+  return h('section', {},
+    state.released ? h('p', { class: 'adminbanner' }, '✔ Vom Prüfer freigegeben – hier sind Ergebnis und Lösung.') : null,
+    h('h2', {}, e.name),
+    e.rolled ? h('p', { class: 'muted' }, '🎲 Ausgewürfelte Zeichen – nur für diese Runde. ',
+      h('button', { class: 'linkish', onclick: saveRolled }, isExaminer() ? 'Als Prüfung speichern (für alle)' : 'Als eigene Übung speichern')) : null,
+    h('p', { class: 'muted' }, 'Gewichte ' + e.weights.join('-') + ' (wiederholt) · modulo 10 · Zeichenwerte: 0–9 wie gelesen, A = 10 … Z = 35, < = 0'),
+    timerBox(),
+    grid(e, { result: r, solution: state.solution, evaluated: state.evaluated, watermark: true }),
+    h('h3', {}, 'Aufgaben'),
+    h('p', { class: 'muted noprint' }, 'Prüfziffern mit Stift und Papier berechnen, dann eintragen. Die Nummern stehen unter den Fragezeichen.'),
+    h('details', { class: 'noprint' }, h('summary', {}, 'Wertetabelle'), valueTable()),
+    h('div', { class: 'tablewrap' }, h('table', { class: 'tasks' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Nr.'), h('th', {}, 'Prüfziffer'), h('th', {}, 'Stelle'), h('th', {}, 'über'),
+        h('th', {}, 'Antwort'), h('th', {}, ''), state.solution ? h('th', {}, 'Lösung') : null)),
+      h('tbody', {}, rows))),
+    state.evaluated ? h('p', { class: 'score' }, ok + ' von ' + r.slots.length + ' richtig (' + Math.round(100 * ok / r.slots.length) + ' %)'
+      + (state.stoppedAt ? ' · Zeit ' + fmt(state.stoppedAt - state.started) + (state.timeUp ? ' (Zeit abgelaufen)' : '') : '')) : null,
+    h('div', { class: 'bar noprint' },
+      h('button', { class: 'primary', onclick: () => { state.evaluated = true; stopTimer(); render(); } }, 'Auswerten'),
+      h('button', { onclick: () => { state.solution = !state.solution; if (state.solution) { state.evaluated = true; stopTimer(); } render(); } },
+        state.solution ? 'Lösung verbergen' : 'Lösung zeigen'),
+      canPractice() ? h('button', { onclick: () => { Object.assign(state, { answers: r.slots.map(() => ''), evaluated: false, solution: false }, freshTimer(e, state.useTimer)); render(); } }, 'Leeren') : null,
+      e.timeLimit && canPractice() ? h('button', { onclick: () => {
+        state.useTimer = !state.useTimer;
+        if (state.useTimer) Object.assign(state, freshTimer(e, true));
+        else Object.assign(state, { deadline: 0, stoppedAt: 0, timeUp: false, evaluated: false });
+        render();
+      } }, state.useTimer ? '⏱ Zeitvorgabe aus' : '⏱ Zeitvorgabe an') : null,
+      canPractice() ? h('button', { onclick: () => reroll(false) }, '🎲 0–9') : null,
+      canPractice() ? h('button', { onclick: () => reroll(true) }, '🎲 0–Z') : null,
+      h('button', { onclick: () => window.print() }, 'Drucken'),
+      h('button', { onclick: () => go('list') }, 'Zur Übersicht')),
+    state.solution ? h('div', { class: 'working' }, h('h3', {}, 'Rechenweg'),
+      r.slots.map((s, i) => h('div', { class: 'step' },
+        h('strong', {}, (i + 1) + '. ' + slotTitle(s) + ' (' + place(s.line, s.pos) + ', über ' + s.range + ')'),
+        h('code', {}, working(s, e.weights))))) : null);
+}
+
+// ------------------------------------------------------------------ Zeit
+
+let timerEl = null;
+
+function freshTimer(e, use) {
+  const now = Date.now();
+  return { started: now, deadline: use && e.timeLimit ? now + e.timeLimit * 60000 : 0, stoppedAt: 0, timeUp: false };
+}
+function stopTimer() { if (!state.stoppedAt) state.stoppedAt = Date.now(); }
+function timerBox() {
+  timerEl = h('div', { class: 'timer noprint', role: 'timer', 'aria-live': 'off' });
+  tick();
+  return timerEl;
+}
+
+function tick() {
+  if (!timerEl || !timerEl.isConnected || state.view !== 'exam') return;
+  const now = Date.now();
+  let started, deadline, stopped;
+  if (state.locked) {
+    const lock = state.lock;
+    started = lock.startedAt; deadline = lock.deadline; stopped = lock.submitted ? lock.submittedAt : 0;
+    if (deadline && !lock.submitted && now >= deadline) {
+      Object.assign(lock, { submitted: true, submittedAt: deadline, timeUp: true });
+      persistLock();
+      render();
+      return;
+    }
+  } else {
+    started = state.started; deadline = state.deadline; stopped = state.stoppedAt;
+    if (deadline && !stopped && now >= deadline) {
+      Object.assign(state, { stoppedAt: deadline, timeUp: true, evaluated: true });
+      render();
+      return;
+    }
+  }
+  const end = stopped || now;
+  if (deadline) {
+    const rest = deadline - end;
+    timerEl.textContent = '⏱ Restzeit ' + fmt(rest) + ' von ' + fmt(deadline - started);
+    timerEl.className = 'timer noprint' + (rest <= 0 ? ' over' : rest <= 60000 ? ' soon' : '');
+  } else {
+    timerEl.textContent = '⏱ ' + fmt(end - started) + (stopped ? ' (angehalten)' : '');
+    timerEl.className = 'timer noprint plain';
+  }
+}
+setInterval(tick, 250);
+
+// ------------------------------------------------------------------ Prüfung (je Nutzer, in seiner Datei)
+
+async function startLocked(e) {
+  if (validate(e).length) { alert('Diese Prüfung ist unvollständig.'); return; }
+  if (!confirm('Prüfung „' + e.name + '“ starten?\n\nErgebnis und Lösung gibt der Prüfer frei. Die Prüfung läuft auch nach Neuladen oder erneuter Anmeldung weiter.')) return;
+  delete e.rolled;
+  const now = Date.now();
+  db.me.lock = { exam: e, answers: compute(e).slots.map(() => ''), submitted: false, startedAt: now,
+    deadline: e.timeLimit ? now + e.timeLimit * 60000 : 0 };
+  if (await guarded(() => saveMe(['lock']))) enterLocked(db.me.lock);
+}
+
+function enterLocked(lock) {
+  Object.assign(state, { view: 'exam', locked: true, lock, exam: lock.exam, result: compute(lock.exam), answers: lock.answers,
+    solution: false, evaluated: false, msg: '' });
+  render();
+  window.scrollTo(0, 0);
+}
+
+let lockWrite = null;
+/** Antworten gesammelt speichern (nicht bei jedem Tastendruck übers Netz). */
+function persistLock(delay) {
+  clearTimeout(lockWrite);
+  lockWrite = setTimeout(() => guarded(() => saveMe(['lock'])), delay || 0);
+}
+
+/** Freigabe (vom Prüfer am eigenen Gerät oder per PIN hier): Ergebnis zeigen, Abgabe als „letztes Ergebnis“ ablegen. */
+async function releaseLocked() {
+  const lock = state.lock, r = state.result;
+  if (!lock.submitted) Object.assign(lock, { submitted: true, submittedAt: Date.now() });
+  const ok = r.slots.filter((s, i) => lock.answers[i] === String(s.digit)).length;
+  db.me.last = { name: lock.exam.name, ok, total: r.slots.length, time: lock.submittedAt - lock.startedAt, at: lock.submittedAt, timeUp: !!lock.timeUp };
+  db.me.lock = null;
+  await guarded(() => saveMe(['lock', 'last']));
+  Object.assign(state, { locked: false, lock: null, evaluated: true, solution: false, useTimer: !!lock.deadline,
+    started: lock.startedAt, deadline: lock.deadline, stoppedAt: lock.submittedAt, timeUp: !!lock.timeUp, released: true });
+  render();
+}
+
+function lockedView() {
+  const e = state.exam, r = state.result, lock = state.lock;
+  const inputs = [];
+  const rows = r.slots.map((s, i) => {
+    const inp = h('input', { class: 'answer', value: state.answers[i], inputmode: 'numeric', maxlength: 1, autocomplete: 'off',
+      disabled: lock.submitted, 'aria-label': 'Antwort Aufgabe ' + (i + 1),
+      oninput: ev => {
+        ev.target.value = ev.target.value.replace(/\D/g, '').slice(0, 1);
+        state.answers[i] = ev.target.value;
+        persistLock(400);
+        if (ev.target.value && inputs[i + 1]) inputs[i + 1].focus();
+      },
+      onkeydown: ev => { if (ev.key === 'Enter' && inputs[i + 1]) inputs[i + 1].focus(); } });
+    inputs.push(inp);
+    return h('tr', {}, h('td', { class: 'num' }, i + 1), h('td', {}, slotTitle(s)),
+      h('td', { class: 'mono' }, place(s.line, s.pos)), h('td', { class: 'mono' }, s.range), h('td', {}, inp));
+  });
+  const pin = pinInputEl('Prüfer-PIN');
+  const guard = loginGuard();
+  const blocked = Date.now() < guard.until;
+  const release = async () => {
+    const g = loginGuard();
+    if (Date.now() < g.until) return;
+    await guarded(refreshShared);
+    if (secretOk(db.config.examiner, pin.value)) { setLoginGuard({ tries: 0, until: 0 }); return releaseLocked(); }
+    g.tries++;
+    let text = 'PIN falsch.';
+    if (g.tries >= 3) { g.tries = 0; g.until = Date.now() + 30000; text = 'Dreimal falsch – 30 Sekunden Pause.'; setTimeout(render, 30050); }
+    setLoginGuard(g);
+    state.msg = text;
+    render();
+  };
+  pin.addEventListener('keydown', ev => { if (ev.key === 'Enter') release(); });
+  const answered = state.answers.filter(a => a !== '').length;
+  return h('section', {},
+    h('p', { class: 'lockbanner' }, '🔒 Prüfung von ' + state.who.name + ' – Ergebnis und Lösung gibt der Prüfer frei.'),
+    h('h2', {}, e.name),
+    h('p', { class: 'muted' }, 'Gewichte ' + e.weights.join('-') + ' (wiederholt) · modulo 10 · Zeichenwerte: 0–9 wie gelesen, A = 10 … Z = 35, < = 0 · begonnen ' + time(lock.startedAt)),
+    lock.submitted ? null : timerBox(),
+    grid(e, { result: r, solution: false, evaluated: false, watermark: true }),
+    h('h3', {}, 'Aufgaben'),
+    h('details', {}, h('summary', {}, 'Wertetabelle'), valueTable()),
+    h('div', { class: 'tablewrap' }, h('table', { class: 'tasks' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Nr.'), h('th', {}, 'Prüfziffer'), h('th', {}, 'Stelle'), h('th', {}, 'über'), h('th', {}, 'Antwort'))),
+      h('tbody', {}, rows))),
+    lock.submitted
+      ? h('p', { class: 'score' }, (lock.timeUp ? '⏱ Zeit abgelaufen um ' : '✔ Abgegeben um ') + time(lock.submittedAt)
+          + ' nach ' + fmt(lock.submittedAt - lock.startedAt) + ' – ' + answered + ' von ' + r.slots.length + ' Antworten eingetragen. Warten auf Freigabe …')
+      : h('div', { class: 'bar' }, h('button', { class: 'primary', onclick: () => {
+          const open = r.slots.length - answered;
+          if (!confirm(open ? open + ' Aufgabe(n) ohne Antwort. Trotzdem abgeben?' : 'Abgeben? Danach lassen sich die Antworten nicht mehr ändern.')) return;
+          Object.assign(lock, { submitted: true, submittedAt: Date.now() });
+          persistLock();
+          render();
+        } }, 'Abgeben')),
+    h('fieldset', { class: 'pinbox' }, h('legend', {}, 'Prüfer'),
+      h('p', { class: 'muted' }, 'Freigabe am Prüfer-Gerät unter „👥 Nutzer und Abgaben“ – oder hier mit dem Prüfer-PIN.'),
+      h('div', { class: 'bar' }, pin, h('button', { onclick: release, disabled: blocked }, 'Freigeben')),
+      state.msg ? h('p', { class: 'warn' }, state.msg) : blocked ? h('p', { class: 'warn' }, 'Dreimal falsch – kurze Pause.') : null),
+    h('div', { class: 'bar' }, h('button', { onclick: () => { clearTimeout(lockWrite); saveMe(['lock']).finally(logout); } }, 'Abmelden (Prüfung läuft weiter)')));
+}
+
+// ------------------------------------------------------------------ Prüfer: Nutzer und Abgaben
+
+let userFiles = {};
+
+async function loadUserFiles() {
+  const out = {};
+  for (const u of db.users) { try { out[u.id] = await readUser(u.id); } catch (e) { out[u.id] = null; } }
+  userFiles = out;
+}
+
+function userStatus(u, f) {
+  if (!f) return h('span', { class: 'muted' }, 'Datei fehlt');
+  const l = f.lock;
+  if (l && l.exam && !validate(sanitize(l.exam)).length) {
+    const r = compute(sanitize(l.exam));
+    const answered = l.answers.filter(a => a !== '').length;
+    if (!l.submitted) {
+      const rest = l.deadline ? ' · Restzeit ' + fmt(l.deadline - Date.now()) : '';
+      return h('span', {}, '✍ „' + l.exam.name + '“ läuft seit ' + time(l.startedAt) + ' · ' + answered + '/' + r.slots.length + ' beantwortet' + rest);
+    }
+    const ok = r.slots.filter((s, i) => l.answers[i] === String(s.digit)).length;
+    return h('span', { class: 'strong' }, '✔ „' + l.exam.name + '“ ' + (l.timeUp ? 'Zeit abgelaufen' : 'abgegeben') + ' ' + time(l.submittedAt)
+      + ' · ' + ok + ' von ' + r.slots.length + ' richtig · Zeit ' + fmt(l.submittedAt - l.startedAt)
+      + (f.release === l.startedAt ? ' · freigegeben, wird angezeigt …' : ''));
+  }
+  if (f.last) return h('span', { class: 'muted' }, 'Zuletzt: „' + f.last.name + '“ ' + f.last.ok + ' von ' + f.last.total + ' richtig · '
+    + fmt(f.last.time) + (f.last.timeUp ? ' (Zeit abgelaufen)' : '') + ' · ' + new Date(f.last.at).toLocaleDateString('de-DE') + ' ' + time(f.last.at));
+  return h('span', { class: 'muted' }, 'keine Prüfung');
+}
+
+/** Nur die Tabelle – sie erneuert sich alle paar Sekunden, ohne das Formular darunter anzutasten. */
+function usersTable() {
+  return db.users.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'tasks' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Stand'), h('th', {}, ''))),
+      h('tbody', {}, db.users.map(u => {
+        const f = userFiles[u.id];
+        const l = f && f.lock;
+        return h('tr', {},
+          h('td', {}, h('strong', {}, u.name)),
+          h('td', { class: 'wrap' }, userStatus(u, f)),
+          h('td', {}, h('div', { class: 'bar small' },
+            l && l.exam && f.release !== l.startedAt ? h('button', { class: 'primary', onclick: async () => {
+              if (!l.submitted && !confirm(u.name + ' hat noch nicht abgegeben. Prüfung trotzdem beenden und freigeben?')) return;
+              await guarded(() => updateUser(u.id, x => { x.release = l.startedAt; }));
+              await refreshUsersTable();
+            } }, 'Freigeben') : null,
+            h('button', { onclick: async () => {
+              const np = prompt('Neuer PIN für ' + u.name + ' (4–12 Ziffern):');
+              if (np === null) return;
+              if (!validPin(np)) { alert('Der PIN muss aus 4 bis 12 Ziffern bestehen.'); return; }
+              await guarded(() => updateUser(u.id, x => { x.pin = newSecret(np); }));
+              alert('PIN für ' + u.name + ' geändert.');
+            } }, 'PIN neu'),
+            h('button', { class: 'danger', onclick: async () => {
+              if (!confirm(u.name + ' mit allen eigenen Übungen löschen?')) return;
+              await guarded(() => deleteUser(u.id));
+              await refreshUsersTable();
+            } }, 'Löschen'))));
+      })))) : h('p', { class: 'muted' }, 'Noch keine Nutzer.');
+}
+
+async function refreshUsersTable() {
+  await loadUserFiles();
+  const el = document.getElementById('usersTable');
+  if (el) el.replaceChildren(usersTable());
+}
+
+function usersView() {
+  const name = h('input', { maxlength: 40, 'aria-label': 'Name', value: state.draftName || '', oninput: ev => { state.draftName = ev.target.value; } });
+  const p1 = pinInputEl('PIN'), p2 = pinInputEl('Wiederholung');
+  return h('section', {},
+    h('div', { class: 'bar' }, h('button', { onclick: () => go('list') }, '← Zur Übersicht')),
+    h('h2', {}, 'Nutzer und Abgaben'),
+    h('p', { class: 'muted' }, 'Aktualisiert sich alle paar Sekunden. Die Ergebnisse siehst nur du; der Nutzer sieht seines nach deiner Freigabe.'),
+    h('div', { id: 'usersTable' }, usersTable()),
+    h('fieldset', {}, h('legend', {}, 'Nutzer anlegen'),
+      field('Name', name), field('PIN (4–12 Ziffern)', p1), field('Wiederholung', p2),
+      h('div', { class: 'bar' }, h('button', { class: 'primary', onclick: async () => {
+        const n = name.value.trim();
+        if (!n) return go('users', { msg: 'Bitte einen Namen eingeben.' });
+        await guarded(refreshShared);
+        if (db.users.some(u => u.name.toLowerCase() === n.toLowerCase())) return go('users', { msg: '„' + n + '“ gibt es schon.' });
+        if (!validPin(p1.value)) return go('users', { msg: 'Der PIN muss aus 4 bis 12 Ziffern bestehen.' });
+        if (p1.value !== p2.value) return go('users', { msg: 'Die beiden PINs stimmen nicht überein.' });
+        await guarded(() => createUser(n, p1.value));
+        await loadUserFiles();
+        go('users', { draftName: '', msg: '✓ ' + n + ' angelegt. PIN bitte persönlich mitteilen.' });
+      } }, 'Anlegen'))),
+    state.msg ? h('p', { class: state.msg.startsWith('✓') ? 'status ready' : 'warn' }, state.msg) : null);
+}
+
+// ------------------------------------------------------------------ Prüfer: Einstellungen / Nutzer: eigener PIN
+
+/** Adresse und QR-Code für die Mitspieler (nur mit Server). */
+function inviteView() {
+  const urls = (db.urls && db.urls.length) ? db.urls : [location.origin + location.pathname.replace(/index\.html$/, '')];
+  return h('section', {},
+    h('div', { class: 'bar' }, h('button', { onclick: () => go('list') }, '← Zur Übersicht')),
+    h('h2', {}, 'Mitspieler einladen'),
+    h('p', {}, 'Mit dem Handy oder Tablet im selben WLAN diesen Code scannen – oder die Adresse im Browser eingeben:'),
+    db.qr ? h('img', { src: 'qr.svg?u=' + encodeURIComponent(urls[0]), alt: 'QR-Code', class: 'qr' }) : null,
+    urls.map(u => h('p', { class: 'mono bigurl' }, u)),
+    h('p', { class: 'muted' }, 'Danach mit Name und PIN anmelden. Tipp: Im Browser „Zum Startbildschirm hinzufügen“ – dann ist der Trainer wie eine App erreichbar.'));
+}
+
+function settingsView() {
+  const a = pinInputEl('Neuer PIN'), b = pinInputEl('Wiederholung');
+  return h('section', {},
+    h('div', { class: 'bar' }, h('button', { onclick: () => go('list') }, '← Zur Übersicht')),
+    h('h2', {}, 'Einstellungen'),
+    h('fieldset', {}, h('legend', {}, 'Übungsmodus'),
+      h('label', { class: 'checkline' }, h('input', { type: 'checkbox', checked: practiceOn(), onchange: async ev => {
+        await guarded(async () => { await refreshShared(); db.config.practice = ev.target.checked; await saveConfig(); });
+        render();
+      } }), ' Übungsmodus für Nutzer erlauben'),
+      h('p', { class: 'muted' }, practiceOn()
+        ? 'Nutzer können ihre Prüfungen üben (mit Lösung) und eigene Übungen anlegen.'
+        : 'Abgeschaltet: Nutzer können nur 🔒 Prüfungen schreiben. Eigene Übungen bleiben gespeichert, sind aber ausgeblendet.')),
+    h('fieldset', {}, h('legend', {}, 'Prüfer-PIN ändern'),
+      field('Neuer PIN', a), field('Wiederholung', b),
+      h('div', { class: 'bar' }, h('button', { onclick: async () => {
+        if (!validPin(a.value)) return go('settings', { msg: 'Der PIN muss aus 4 bis 12 Ziffern bestehen.' });
+        if (a.value !== b.value) return go('settings', { msg: 'Die beiden PINs stimmen nicht überein.' });
+        await guarded(async () => { await refreshShared(); db.config.examiner = newSecret(a.value); await saveConfig(); });
+        go('settings', { msg: '✓ Neuer Prüfer-PIN gespeichert.' });
+      } }, 'PIN speichern'))),
+    state.msg ? h('p', { class: state.msg.startsWith('✓') ? 'status ready' : 'warn' }, state.msg) : null,
+    h('p', { class: 'muted' }, placeLabel() + '. Prüfer-PIN vergessen? Dann im Datenordner „' + DATA_DIR + '“'
+      + (BACKEND === 'http' ? ' (neben dem Server-Programm bzw. dem PHP-Skript)' : '') + ' die Datei config.json löschen und neu einrichten – Nutzer und Prüfungen bleiben erhalten.'));
+}
+
+function accountView() {
+  const a = pinInputEl('Neuer PIN'), b = pinInputEl('Wiederholung');
+  return h('section', {},
+    h('div', { class: 'bar' }, h('button', { onclick: () => go('list') }, '← Zur Übersicht')),
+    h('h2', {}, 'Mein PIN'),
+    h('fieldset', {}, field('Neuer PIN', a), field('Wiederholung', b),
+      h('div', { class: 'bar' }, h('button', { class: 'primary', onclick: async () => {
+        if (!validPin(a.value)) return go('account', { msg: 'Der PIN muss aus 4 bis 12 Ziffern bestehen.' });
+        if (a.value !== b.value) return go('account', { msg: 'Die beiden PINs stimmen nicht überein.' });
+        db.me.pin = newSecret(a.value);
+        await guarded(() => saveMe(['pin']));
+        go('account', { msg: '✓ Neuer PIN gespeichert.' });
+      } }, 'Speichern'))),
+    state.msg ? h('p', { class: state.msg.startsWith('✓') ? 'status ready' : 'warn' }, state.msg) : null);
+}
+
+// ------------------------------------------------------------------ Abgleich mit dem gemeinsamen Ordner
+
+let polling = false;
+async function poll() {
+  if (polling || !db.data || !state.who) return;
+  polling = true;
+  try {
+    const changed = await refreshShared();
+    if (isUser()) {
+      const fresh = await readUser(state.who.id);
+      if (!fresh) { logout(); return; }                                   // Nutzer wurde gelöscht
+      db.me.release = fresh.release;
+      if (!state.locked) db.me.exams = fresh.exams;
+      if (state.locked && state.lock && fresh.release === state.lock.startedAt) { await releaseLocked(); return; }
+    }
+    if (state.view === 'users') await refreshUsersTable();
+    else if (changed && state.view === 'list') render();
+    else if (changed && state.view === 'exam' && !state.locked && !state.released && !canPractice()) render();   // Übungsmodus wurde abgeschaltet
+    db.error = '';
+  } catch (e) {
+    db.error = (BACKEND === 'http' ? 'Server' : 'Gemeinsamer Ordner') + ' gerade nicht erreichbar – neuer Versuch in wenigen Sekunden.';
+    if (state.view === 'list') render();
+  } finally {
+    polling = false;
+  }
+}
+setInterval(poll, 3000);
+
+// ------------------------------------------------------------------ Start
+
+async function startHttp() {
+  try { await connectServer(); afterConnect(); }
+  catch (e) { state.view = 'connect'; state.msg = 'Server nicht erreichbar (' + (e.message || e.name) + ').'; render(); }
+}
+
+(async () => {
+  if (BACKEND === 'http') return startHttp();
+  if (location.hash === '#opfs') {
+    try { await useTestStorage(); } catch (e) { }
+    return afterConnect();
+  }
+  if (FS_SUPPORTED) {
+    state.savedRoot = await savedFolder();
+    if (state.savedRoot) {
+      try { if (await reconnect(state.savedRoot, false)) return afterConnect(); } catch (e) { }
+    }
+  }
+  render();
+})();
+
+// Prüfer-Ansicht „Nutzer“ beim Öffnen sofort laden
+const _go = go;
+go = function (view, extra) {
+  if (view === 'users') loadUserFiles().then(() => _go(view, extra)).catch(() => _go(view, extra));
+  else _go(view, extra);
+};
+
+</script>
+</body>
+</html>
