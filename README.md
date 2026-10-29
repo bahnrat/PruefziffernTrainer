@@ -174,6 +174,11 @@ Geschrieben wird über eine Hilfsdatei mit anschließendem Umbenennen.
 
 ## Lizenz
 
-*[noch festzulegen – z. B. MIT]*
+Dieses Programm ist freie Software: Sie können es unter den Bedingungen der
+**GNU General Public License, Version 3** (oder nach Ihrer Wahl jeder späteren Version),
+wie von der Free Software Foundation veröffentlicht, weitergeben und/oder ändern.
+Es wird ohne jede Gewährleistung bereitgestellt. Details in der Datei [`LICENSE`](LICENSE).
+
+SPDX-License-Identifier: `GPL-3.0-or-later`
 
 Die Schriften in den PDF-Anleitungen (Liberation Sans/Mono) stehen unter der SIL Open Font License.
